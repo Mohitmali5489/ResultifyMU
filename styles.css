@@ -1,17 +1,17 @@
-/* Web UI Styles */
+/* Screen Styles */
 body {
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
 }
 
-/* Print Logic - The Magic Part */
+/* Print Styles */
 @media print {
-    /* Hide everything that isn't the print area */
+    /* Hide the website UI */
     body * {
         visibility: hidden;
     }
     
-    /* Display only the print area */
+    /* Show only the Result Card */
     #print-area, #print-area * {
         visibility: visible;
     }
@@ -23,22 +23,11 @@ body {
         width: 100%;
         margin: 0;
         padding: 0;
-        background: white;
     }
 
-    /* Reset margins for A4 */
+    /* Force A4 Size */
     @page {
         size: A4 portrait;
-        margin: 0; /* Important: Browser handles margins, we want control */
+        margin: 0;
     }
-}
-
-/* A4 Sheet Simulation for Preview (Optional) */
-.grade-card-sheet {
-    width: 210mm;
-    min-height: 297mm;
-    padding: 10mm;
-    background: white;
-    margin: 0 auto;
-    position: relative;
 }
