@@ -1,173 +1,151 @@
 class LedgerParser {
     constructor() {
         this.students = [];
-        this.courseMap = {}; // Maps code to name
+        this.courseMap = {}; 
     }
 
     async parse(file, onProgress) {
+        console.log("Starting Parse...");
         const arrayBuffer = await file.arrayBuffer();
         const pdf = await pdfjsLib.getDocument(arrayBuffer).promise;
         const totalPages = pdf.numPages;
+        console.log(`PDF Loaded. Total pages: ${totalPages}`);
 
         for (let i = 1; i <= totalPages; i++) {
             const page = await pdf.getPage(i);
             const content = await page.getTextContent();
             
-            // Normalize items with position
+            // 1. Extract and Sort Text Items
             const items = content.items.map(item => ({
                 str: item.str,
                 x: item.transform[4],
                 y: item.transform[5],
-                hasHeight: item.height > 0
+                w: item.width,
+                h: item.height
             }));
 
-            this.processPage(items);
+            // Sort: Top to Bottom (Y desc), then Left to Right (X asc)
+            items.sort((a, b) => {
+                const yDiff = b.y - a.y;
+                if (Math.abs(yDiff) < 5) return a.x - b.x; // If Y is close, sort by X
+                return yDiff;
+            });
+
+            this.processPageLines(items);
             
             if (onProgress) onProgress(i, totalPages);
         }
 
+        console.log("Parse Complete. Found students:", this.students.length);
         return this.students;
     }
 
-    processPage(items) {
-        // Group items by Y coordinate (lines)
-        const lines = {};
-        const TOLERANCE = 4; // Vertical tolerance in pixels
+    processPageLines(items) {
+        // Group items into text lines
+        const lines = [];
+        let currentLine = { y: -1, text: "" };
 
         items.forEach(item => {
-            // Bucketize Y to group items on roughly the same line
-            const yKey = Math.floor(item.y / TOLERANCE) * TOLERANCE;
-            if (!lines[yKey]) lines[yKey] = [];
-            lines[yKey].push(item);
+            if (Math.abs(item.y - currentLine.y) > 5) {
+                // New Line
+                if (currentLine.y !== -1) lines.push(currentLine.text.trim());
+                currentLine = { y: item.y, text: item.str };
+            } else {
+                // Append to current line (add space if needed)
+                currentLine.text += " " + item.str;
+            }
+        });
+        if (currentLine.text) lines.push(currentLine.text.trim());
+
+        // --- STATE MACHINE PARSING ---
+        // We iterate through lines and track state
+        let currentStudent = null;
+
+        lines.forEach(line => {
+            const cleanLine = line.replace(/\s+/g, ' ').trim();
+            
+            // DEBUG: Uncomment to see every line in console
+            // console.log("Line:", cleanLine);
+
+            // 1. Capture Course Codes (Header Check)
+            // Pattern: (1162111): ...
+            if (cleanLine.includes("):") && !currentStudent) {
+                const match = cleanLine.match(/(\d{6,10}):\s*(.+)/);
+                if (match) {
+                     // logic to save course names if needed
+                }
+            }
+
+            // 2. START NEW STUDENT: Look for Seat Number (7-12 digits at start of line)
+            // Example: "262112770 ZUBIYA FAKRUDDIN SHAIKH"
+            const seatMatch = cleanLine.match(/^(\d{7,15})\s+(.*)/);
+            
+            if (seatMatch) {
+                // If we were processing a student, save them (unless they are incomplete/broken)
+                if (currentStudent) {
+                    this.students.push(currentStudent);
+                }
+
+                const possibleName = seatMatch[2].trim();
+                
+                // IGNORE headers/page numbers
+                if (!possibleName.toLowerCase().includes("page") && possibleName.length > 2) {
+                    currentStudent = {
+                        seatNo: seatMatch[1],
+                        name: possibleName,
+                        prn: "Pending",
+                        college: "University of Mumbai",
+                        sgpa: "0.00",
+                        status: "Result Pending",
+                        subjects: []
+                    };
+                    console.log(`Found Student: ${currentStudent.seatNo} - ${currentStudent.name}`);
+                }
+            }
+
+            if (!currentStudent) return;
+
+            // 3. CAPTURE PRN
+            // Pattern: (MU0341120240096421)
+            if (cleanLine.includes("(MU")) {
+                const prnMatch = cleanLine.match(/\((MU\w+)\)/);
+                if (prnMatch) {
+                    currentStudent.prn = prnMatch[1];
+                }
+            }
+
+            // 4. CAPTURE COLLEGE
+            // Pattern: contains "College" or "Societys"
+            if ((cleanLine.includes("College") || cleanLine.includes("Societys")) && cleanLine.length > 10) {
+                currentStudent.college = cleanLine;
+            }
+
+            // 5. CAPTURE RESULT / SGPA (Closing the block)
+            // Pattern: "SGPA ... 7.45" or "Result: PASS" or "FAIL"
+            if (cleanLine.includes("SGPA") || cleanLine.includes("FAIL") || cleanLine.includes("PASS")) {
+                
+                // Extract SGPA
+                const sgpaMatch = cleanLine.match(/SGPA\D*(\d+\.\d+)/);
+                if (sgpaMatch) {
+                    currentStudent.sgpa = sgpaMatch[1];
+                }
+
+                // Extract Status
+                if (cleanLine.includes("PASS") || (sgpaMatch && parseFloat(sgpaMatch[1]) > 0)) {
+                    currentStudent.status = "PASS";
+                }
+                if (cleanLine.includes("FAIL") || cleanLine.includes("Fails")) {
+                    currentStudent.status = "FAIL";
+                }
+                if (cleanLine.includes("ATKT")) {
+                    currentStudent.status = "ATKT";
+                }
+            }
         });
 
-        // Sort lines top to bottom
-        const sortedY = Object.keys(lines).sort((a, b) => b - a);
-
-        let tempStudent = null;
-        let captureSubjects = false;
-
-        for (let y of sortedY) {
-            // Sort items in line Left to Right
-            const lineItems = lines[y].sort((a, b) => a.x - b.x);
-            const lineStr = lineItems.map(i => i.str).join(" ").trim();
-            const cleanStr = lineStr.replace(/\s+/g, " "); // Remove extra spaces
-
-            // 1. EXTRACT COURSE MAPPING (Top of page)
-            // Pattern: (1162111): 1162111: Financial Accounting - II
-            if (lineStr.includes("):") && lineStr.includes(":")) {
-                const match = lineStr.match(/(\d{6,8}):\s*(.+)/);
-                if (match) {
-                    // Extract code and name. 
-                    // Example: "1162111: Financial Accounting"
-                    const parts = match[0].split(":");
-                    if(parts.length >= 2) {
-                        const code = parts[0].trim();
-                        const name = parts.slice(1).join(":").trim();
-                        this.courseMap[code] = name;
-                    }
-                }
-            }
-
-            // 2. DETECT STUDENT START (Seat No & Name)
-            // Pattern: 7+ digit number at start, followed by text
-            const seatMatch = cleanStr.match(/^(\d{7,12})\s+([A-Z\.\s]+)$/);
-            
-            // Exclude "Page" or "University" lines
-            if (seatMatch && !cleanStr.toLowerCase().includes("page")) {
-                
-                // Save previous student
-                if (tempStudent) {
-                    this.finalizeStudent(tempStudent);
-                    this.students.push(tempStudent);
-                }
-
-                // Init new student
-                tempStudent = {
-                    seatNo: seatMatch[1],
-                    name: seatMatch[2].trim(),
-                    prn: "",
-                    college: "",
-                    sgpa: "0.00",
-                    status: "FAIL", // Default to FAIL/Pending until PASS found
-                    subjects: [] 
-                };
-                captureSubjects = true; // Start looking for marks
-            }
-
-            if (!tempStudent) continue;
-
-            // 3. DETECT PRN
-            // Pattern: (MU...)
-            if (cleanStr.includes("(MU")) {
-                const prnMatch = cleanStr.match(/\((MU\w+)\)/);
-                if (prnMatch) tempStudent.prn = prnMatch[1];
-            }
-
-            // 4. DETECT COLLEGE
-            // Usually contains "College" or specific ID "MU-XXXX"
-            if (cleanStr.includes("College") || cleanStr.includes("Societys") || cleanStr.includes("MU-")) {
-                if (!tempStudent.college || tempStudent.college.length < 5) {
-                    tempStudent.college = cleanStr.replace(/^[,\s]+|[,\s]+$/g, '');
-                }
-            }
-
-            // 5. DETECT RESULT / SGPA
-            // The footer of the student block
-            if (cleanStr.includes("SGPA") || cleanStr.includes("Result")) {
-                const sgpaMatch = cleanStr.match(/SGPA\D*(\d+\.\d+)/);
-                if (sgpaMatch) tempStudent.sgpa = sgpaMatch[1];
-
-                if (cleanStr.includes("PASS")) tempStudent.status = "PASS";
-                if (cleanStr.includes("FAIL") || cleanStr.includes("Fails")) tempStudent.status = "FAIL";
-                if (cleanStr.includes("ATKT")) tempStudent.status = "ATKT";
-                
-                captureSubjects = false; // End of student block
-            }
-
-            // 6. DETECT SUBJECTS / MARKS (Simplified)
-            // We look for lines starting with a course code (e.g., 1162111) 
-            // OR lines that look like marks rows if we are inside a student block.
-            // *Note*: Extracting exact marks from plain text without coordinates logic is hard.
-            // We will attempt to find the Course Code in the line.
-            
-            if (captureSubjects) {
-                // Check if any known course code is in this line
-                for (const code in this.courseMap) {
-                    if (cleanStr.includes(code)) {
-                        // Found a subject line! 
-                        // Let's try to extract marks. 
-                        // This is a rough heuristic: get numbers from line
-                        const marks = cleanStr.match(/\d+/g) || [];
-                        
-                        // We need a robust way to guess which number is which.
-                        // Usually: Code, Internal, External, Total, Credits, GradePoints
-                        
-                        // For now, we store the raw line data and the mapped name
-                        // In a real production app, you map column X-coords to fields.
-                        tempStudent.subjects.push({
-                            code: code,
-                            name: this.courseMap[code],
-                            raw: cleanStr
-                        });
-                        break; 
-                    }
-                }
-            }
+        // Push the very last student of the loop/page
+        if (currentStudent) {
+            this.students.push(currentStudent);
         }
-
-        // Push last student
-        if (tempStudent) {
-            this.finalizeStudent(tempStudent);
-            this.students.push(tempStudent);
-        }
-    }
-
-    finalizeStudent(student) {
-        // Fallback: If college is empty, fill generic
-        if (!student.college) student.college = "University of Mumbai Affiliated College";
-        
-        // Clean up Name (remove trailing chars)
-        student.name = student.name.replace(/[^A-Z\s]/g, '').trim();
     }
 }
