@@ -1,64 +1,91 @@
-let fullResult = null;
+// GLOBAL STATE (DECLARE ONCE)
+window.fullResult = null;
 
-const btn = document.getElementById("process-btn");
-const status = document.getElementById("status-text");
+const processBtn = document.getElementById("process-btn");
+const statusText = document.getElementById("status-text");
 const dashboard = document.getElementById("dashboard");
 const tableBody = document.getElementById("table-body");
-const count = document.getElementById("student-count");
+const studentCount = document.getElementById("student-count");
 
-btn.onclick = async () => {
+processBtn.addEventListener("click", async () => {
     const file = document.getElementById("pdf-upload").files[0];
-    if (!file) return alert("Select PDF");
+    if (!file) {
+        alert("Please select a PDF file");
+        return;
+    }
 
-    btn.disabled = true;
-    status.innerText = "Parsing PDF...";
+    processBtn.disabled = true;
+    statusText.innerText = "Initializing parser...";
+    dashboard.classList.add("hidden");
 
-    const parser = new LedgerParser();
-    fullResult = await parser.parse(file, (c, t) => {
-        status.innerText = `Scanning page ${c}/${t}`;
-    });
+    try {
+        const parser = new LedgerParser();
 
-    btn.disabled = false;
-    status.innerText = "Completed";
+        window.fullResult = await parser.parse(file, (curr, total) => {
+            statusText.innerText = `Scanning page ${curr} of ${total}...`;
+        });
 
-    dashboard.classList.remove("hidden");
-    count.innerText = fullResult.students.length;
-    renderTable();
-};
+        statusText.innerText = "Completed";
+        processBtn.disabled = false;
 
-function renderTable() {
+        studentCount.innerText = window.fullResult.students.length;
+        dashboard.classList.remove("hidden");
+
+        renderTable(window.fullResult.students);
+
+    } catch (err) {
+        console.error(err);
+        statusText.innerText = "Error occurred. Check console.";
+        processBtn.disabled = false;
+    }
+});
+
+function renderTable(students) {
     tableBody.innerHTML = "";
-    fullResult.students.forEach(s => {
-        tableBody.innerHTML += `
-        <tr class="border-b">
-            <td class="p-2">${s.seatNo}</td>
-            <td class="p-2">${s.name}</td>
-            <td class="p-2 font-bold">${s.sgpa}</td>
+
+    students.forEach(student => {
+        const tr = document.createElement("tr");
+        tr.className = "border-b";
+
+        tr.innerHTML = `
+            <td class="p-2">${student.seatNo}</td>
+            <td class="p-2">${student.name}</td>
+            <td class="p-2 font-bold">${student.sgpa ?? "-"}</td>
             <td class="p-2">
-                <span class="${s.result === 'PASS' ? 'text-green-600' : 'text-red-600'}">
-                    ${s.result}
+                <span class="${student.result === 'PASS'
+                    ? 'text-green-600'
+                    : 'text-red-600'}">
+                    ${student.result}
                 </span>
             </td>
             <td class="p-2 text-right">
-                <button class="text-indigo-600 font-bold"
-                        onclick="viewCard('${s.seatNo}')">
+                <button
+                    class="text-indigo-600 font-bold"
+                    onclick="viewCard('${student.seatNo}')">
                     View Card
                 </button>
             </td>
-        </tr>`;
+        `;
+        tableBody.appendChild(tr);
     });
 }
 
-function viewCard(seatNo) {
-    const student = fullResult.students.find(s => s.seatNo === seatNo);
-    document.getElementById("print-area").innerHTML =
-        Renderer.renderCard(student, fullResult.college);
-    window.print();
-}
+window.viewCard = (seatNo) => {
+    const student = window.fullResult.students.find(
+        s => s.seatNo === seatNo
+    );
 
-function exportToExcel() {
-    const ws = XLSX.utils.json_to_sheet(fullResult.students);
+    document.getElementById("print-area").innerHTML =
+        Renderer.renderCard(student, window.fullResult.college);
+
+    window.print();
+};
+
+window.exportToExcel = () => {
+    if (!window.fullResult) return;
+
+    const ws = XLSX.utils.json_to_sheet(window.fullResult.students);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Results");
     XLSX.writeFile(wb, "MU_Result.xlsx");
-}
+};
