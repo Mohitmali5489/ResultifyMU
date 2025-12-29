@@ -2,85 +2,68 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Resultify MU - Ledger Parser</title>
-    
-    <script src="https://cdn.tailwindcss.com"></script>
-    
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
-    <script>pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';</script>
-    
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <title>Resultify MU</title>
 
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
+    <script>
+        pdfjsLib.GlobalWorkerOptions.workerSrc =
+        'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
+    </script>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <link rel="stylesheet" href="styles.css">
 </head>
-<body class="bg-slate-100 text-slate-900 font-sans">
 
-    <nav class="bg-indigo-900 text-white shadow-lg print:hidden">
-        <div class="container mx-auto px-6 py-4 flex justify-between items-center">
-            <h1 class="text-xl font-bold tracking-wide">Resultify MU</h1>
-            <span class="text-xs bg-indigo-700 px-3 py-1 rounded-full">Client-Side Only</span>
-        </div>
-    </nav>
+<body class="bg-slate-100">
 
-    <div class="container mx-auto p-6 max-w-5xl print:hidden">
-        
-        <div class="bg-white p-10 rounded-xl shadow-md border border-slate-200 text-center mb-8">
-            <h2 class="text-2xl font-bold text-slate-800 mb-2">Upload University Ledger</h2>
-            <p class="text-slate-500 mb-6 text-sm">Select the PDF file containing the student results.</p>
-            
-            <input type="file" id="pdf-upload" accept=".pdf" class="block w-full max-w-xs mx-auto text-sm text-slate-500
-              file:mr-4 file:py-2 file:px-4
-              file:rounded-full file:border-0
-              file:text-sm file:font-semibold
-              file:bg-indigo-50 file:text-indigo-700
-              hover:file:bg-indigo-100 cursor-pointer"
-            />
+<nav class="bg-indigo-900 text-white px-6 py-4">
+    <h1 class="text-xl font-bold">Resultify MU</h1>
+</nav>
 
-            <div class="mt-6">
-                <button id="process-btn" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-8 rounded-full transition shadow-md">
-                    Process Ledger
-                </button>
-            </div>
-            <p id="status-text" class="mt-4 text-sm text-gray-600 font-mono min-h-[20px]"></p>
-        </div>
+<div class="container mx-auto p-6 max-w-5xl print:hidden">
 
-        <div id="dashboard" class="hidden">
-            <div class="flex justify-between items-end mb-4">
-                <div>
-                    <h3 class="text-xl font-bold text-slate-800">Parsed Data</h3>
-                    <p class="text-sm text-slate-500">Students Found: <span id="student-count" class="font-bold text-indigo-600">0</span></p>
-                </div>
-                <div class="space-x-2">
-                    <button onclick="exportToExcel()" class="bg-green-600 text-white px-4 py-2 rounded shadow hover:bg-green-700 text-sm">Download Excel</button>
-                </div>
-            </div>
-
-            <div class="bg-white rounded-lg shadow overflow-hidden border border-slate-200">
-                <div class="overflow-y-auto max-h-[600px]">
-                    <table class="w-full text-sm text-left">
-                        <thead class="bg-slate-50 text-slate-700 uppercase font-bold sticky top-0 z-10 shadow-sm">
-                            <tr>
-                                <th class="px-6 py-3">Seat No</th>
-                                <th class="px-6 py-3">Name</th>
-                                <th class="px-6 py-3">PRN</th>
-                                <th class="px-6 py-3">SGPA</th>
-                                <th class="px-6 py-3">Status</th>
-                                <th class="px-6 py-3 text-right">Action</th>
-                            </tr>
-                        </thead>
-                        <tbody id="table-body" class="divide-y divide-slate-100">
-                            </tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
+    <div class="bg-white p-8 rounded shadow mb-6 text-center">
+        <input type="file" id="pdf-upload" accept=".pdf" class="mb-4">
+        <button id="process-btn"
+                class="bg-indigo-600 text-white px-6 py-2 rounded">
+            Process Ledger
+        </button>
+        <p id="status-text" class="mt-4 text-sm text-gray-600"></p>
     </div>
 
-    <div id="print-area"></div>
+    <div id="dashboard" class="hidden">
+        <div class="flex justify-between mb-4">
+            <p>Students Found: <b id="student-count">0</b></p>
+            <button onclick="exportToExcel()"
+                    class="bg-green-600 text-white px-4 py-2 rounded">
+                Download Excel
+            </button>
+        </div>
 
-    <script src="parser.js"></script>
-    <script src="renderer.js"></script>
-    <script src="app.js"></script>
+        <div class="bg-white rounded shadow overflow-auto">
+            <table class="w-full text-sm">
+                <thead class="bg-gray-100">
+                <tr>
+                    <th class="p-2">Seat No</th>
+                    <th class="p-2">Name</th>
+                    <th class="p-2">SGPA</th>
+                    <th class="p-2">Result</th>
+                    <th class="p-2 text-right">Action</th>
+                </tr>
+                </thead>
+                <tbody id="table-body"></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<div id="print-area"></div>
+
+<script src="parser.js"></script>
+<script src="renderer.js"></script>
+<script src="app.js"></script>
+
 </body>
 </html>
