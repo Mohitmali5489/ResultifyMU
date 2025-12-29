@@ -1,135 +1,131 @@
+const SUBJECTS = [
+    { code: "1102311", name: "Social Media Marketing (OE)", credit: 2 },
+    { code: "1112312", name: "Environmental Science", credit: 2 },
+    { code: "1162111", name: "Financial Accounting - II", credit: 4 },
+    { code: "1162112", name: "Auditing - II", credit: 2 },
+    { code: "1162411", name: "Vocational Skills in A&F - III", credit: 2 },
+    { code: "1162412", name: "Vocational Skills in A&F - IV", credit: 2 },
+    { code: "1242211", name: "Introduction to Business", credit: 2 },
+    { code: "2512511", name: "Lekhan Kaushalya", credit: 2 },
+    { code: "2542520", name: "Foundation of Behavioral Skills", credit: 2 },
+    { code: "2522620", name: "Sports, Yoga & Fitness", credit: 2 }
+];
+
 class LedgerParser {
     constructor() {
-        this.students = [];
+        this.result = {
+            university: "University of Mumbai",
+            exam: "",
+            college: {},
+            students: []
+        };
     }
 
     async parse(file, onProgress) {
-        const arrayBuffer = await file.arrayBuffer();
-        const pdf = await pdfjsLib.getDocument(arrayBuffer).promise;
-        const totalPages = pdf.numPages;
+        const buffer = await file.arrayBuffer();
+        const pdf = await pdfjsLib.getDocument(buffer).promise;
 
-        for (let i = 1; i <= totalPages; i++) {
-            const page = await pdf.getPage(i);
+        for (let p = 1; p <= pdf.numPages; p++) {
+            const page = await pdf.getPage(p);
             const content = await page.getTextContent();
-            
-            // 1. Extract Items with coordinates
-            let items = content.items.map(item => ({
-                str: item.str,
-                x: item.transform[4],
-                y: item.transform[5],
-                h: item.height
+
+            let items = content.items.map(i => ({
+                str: i.str,
+                x: i.transform[4],
+                y: i.transform[5]
             }));
 
-            // 2. Sort Items: Top-to-Bottom, Left-to-Right
-            items.sort((a, b) => {
-                if (Math.abs(b.y - a.y) < 4) return a.x - b.x; // Same line (tolerance 4px)
-                return b.y - a.y; // Descending Y
-            });
+            items.sort((a, b) =>
+                Math.abs(b.y - a.y) < 4 ? a.x - b.x : b.y - a.y
+            );
 
-            // 3. Reconstruct Visual Lines
-            const lines = this.reconstructLines(items);
-
-            // 4. Parse the Clean Lines
+            const lines = this.rebuildLines(items);
             this.processLines(lines);
-            
-            if (onProgress) onProgress(i, totalPages);
+
+            if (onProgress) onProgress(p, pdf.numPages);
         }
 
-        return this.students;
+        return this.result;
     }
 
-    reconstructLines(items) {
+    rebuildLines(items) {
         const lines = [];
-        if (items.length === 0) return lines;
+        let currentY = null;
+        let buffer = [];
 
-        let currentLineY = items[0].y;
-        let currentLineText = [];
-
-        items.forEach(item => {
-            // If item Y is significantly different, start new line
-            if (Math.abs(item.y - currentLineY) > 5) {
-                lines.push(currentLineText.join(" ").trim());
-                currentLineText = [];
-                currentLineY = item.y;
+        items.forEach(i => {
+            if (currentY === null || Math.abs(i.y - currentY) < 5) {
+                buffer.push(i.str);
+            } else {
+                lines.push(buffer.join(" ").trim());
+                buffer = [i.str];
             }
-            currentLineText.push(item.str);
+            currentY = i.y;
         });
-        
-        // Push last line
-        if (currentLineText.length > 0) lines.push(currentLineText.join(" ").trim());
-        
+
+        if (buffer.length) lines.push(buffer.join(" ").trim());
         return lines;
     }
 
     processLines(lines) {
-        let currentStudent = null;
+        let student = null;
+        let subjectIndex = 0;
 
         for (let line of lines) {
-            let cleanLine = line.replace(/\s+/g, " ").trim();
-            let upperLine = cleanLine.toUpperCase();
+            const clean = line.replace(/\s+/g, " ").trim();
+            const upper = clean.toUpperCase();
 
-            // --- A. IGNORE HEADERS & FOOTERS ---
-            if (upperLine.includes("UNIVERSITY OF MUMBAI") || 
-                upperLine.includes("OFFICE REGISTER") || 
-                upperLine.includes("PAGE :") ||
-                upperLine.includes("CENTRE :") ||
-                upperLine.includes("CREDITS") || 
-                upperLine.includes("COURSE NAME")) {
-                continue;
-            }
-
-            // --- B. DETECT START OF STUDENT (Seat No & Name) ---
-            // Regex: Starts with 7-15 digits, followed by Name (Letters/Spaces)
-            // Example: "262112770 ZUBIYA FAKRUDDIN SHAIKH"
-            const seatMatch = cleanLine.match(/^(\d{7,15})\s+([A-Z\.\s]+)$/);
-            
-            if (seatMatch) {
-                // If we were building a student, save them now
-                if (currentStudent) this.students.push(currentStudent);
-
-                currentStudent = {
-                    seatNo: seatMatch[1],
-                    name: seatMatch[2].trim(),
-                    prn: "-",
-                    college: "",
-                    sgpa: "0.00",
-                    status: "FAIL" // Assume fail until we find passing criteria
+            if (!this.result.college.name && upper.includes("COLLEGE")) {
+                this.result.college = {
+                    code: "MU-1122",
+                    name: clean
                 };
             }
 
-            if (!currentStudent) continue;
-
-            // --- C. DETECT PRN ---
-            // Pattern: (MU034...)
-            if (cleanLine.includes("(MU")) {
-                const prnMatch = cleanLine.match(/\((MU\w+)\)/);
-                if (prnMatch) currentStudent.prn = prnMatch[1];
+            const seatMatch = clean.match(/^(\d{7,15})\s+([A-Z\s\.]+)$/);
+            if (seatMatch) {
+                if (student) this.result.students.push(student);
+                student = {
+                    seatNo: seatMatch[1],
+                    name: seatMatch[2],
+                    prn: "",
+                    sgpa: null,
+                    result: "FAIL",
+                    subjects: []
+                };
+                subjectIndex = 0;
+                continue;
             }
 
-            // --- D. DETECT COLLEGE ---
-            // Pattern: Look for "College" or "Society" but ignore generic headers
-            if ((upperLine.includes("COLLEGE") || upperLine.includes("SOCIETYS")) && cleanLine.length > 20) {
-                // Simple heuristic: Take the whole line as college name
-                currentStudent.college = cleanLine;
+            if (!student) continue;
+
+            const prnMatch = clean.match(/\((MU\w+)\)/);
+            if (prnMatch) student.prn = prnMatch[1];
+
+            const subjectRow = clean.match(/^(\d+)\s+(\d+)\s+([A-F\+O]+)\s+(\d+)\s+([\d\.]+)$/);
+            if (subjectRow && SUBJECTS[subjectIndex]) {
+                const s = SUBJECTS[subjectIndex];
+                student.subjects.push({
+                    code: s.code,
+                    name: s.name,
+                    credit: s.credit,
+                    total: Number(subjectRow[1]),
+                    grade: subjectRow[3],
+                    gp: Number(subjectRow[2]),
+                    cp: Number(subjectRow[5])
+                });
+                subjectIndex++;
             }
 
-            // --- E. DETECT RESULT / SGPA (End of Block) ---
-            // Pattern: "SGPA ... 7.45"
-            if (upperLine.includes("SGPA") || upperLine.includes("RESULT")) {
-                const sgpaMatch = cleanLine.match(/SGPA\D*(\d+\.\d+)/);
-                if (sgpaMatch) currentStudent.sgpa = sgpaMatch[1];
-
-                if (upperLine.includes("PASS")) currentStudent.status = "PASS";
-                else if (upperLine.includes("FAIL")) currentStudent.status = "FAIL";
-                else if (upperLine.includes("ATKT")) currentStudent.status = "ATKT";
+            if (upper.includes("SGPA")) {
+                student.sgpa = parseFloat(clean.match(/(\d+\.\d+)/)?.[1] || 0);
+                student.result = upper.includes("PASS") ? "PASS" : "FAIL";
             }
         }
-        
-        // Don't forget the very last student on the page
-        if (currentStudent) {
-            // Avoid duplicates if logic runs per page
-            const exists = this.students.some(s => s.seatNo === currentStudent.seatNo);
-            if (!exists) this.students.push(currentStudent);
+
+        if (student) {
+            const exists = this.result.students.some(s => s.seatNo === student.seatNo);
+            if (!exists) this.result.students.push(student);
         }
     }
 }
