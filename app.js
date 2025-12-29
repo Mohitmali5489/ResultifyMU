@@ -1,43 +1,46 @@
-// GLOBAL STATE (DECLARE ONCE)
+// GLOBAL STATE (SAFE)
 window.fullResult = null;
 
-const processBtn = document.getElementById("process-btn");
-const statusText = document.getElementById("status-text");
-const dashboard = document.getElementById("dashboard");
-const tableBody = document.getElementById("table-body");
-const studentCount = document.getElementById("student-count");
+window.addEventListener("DOMContentLoaded", () => {
 
-processBtn.addEventListener("click", async () => {
-    const file = document.getElementById("pdf-upload").files[0];
-    if (!file) {
-        alert("Please select a PDF file");
-        return;
-    }
+    window.processBtn = document.getElementById("process-btn");
+    window.statusText = document.getElementById("status-text");
+    window.dashboardEl = document.getElementById("dashboard");
+    window.tableBody = document.getElementById("table-body");
+    window.studentCount = document.getElementById("student-count");
 
-    processBtn.disabled = true;
-    statusText.innerText = "Initializing parser...";
-    dashboard.classList.add("hidden");
+    processBtn.addEventListener("click", async () => {
+        const file = document.getElementById("pdf-upload").files[0];
+        if (!file) {
+            alert("Please select a PDF file");
+            return;
+        }
 
-    try {
-        const parser = new LedgerParser();
+        processBtn.disabled = true;
+        statusText.innerText = "Initializing parser...";
+        dashboardEl.classList.add("hidden");
 
-        window.fullResult = await parser.parse(file, (curr, total) => {
-            statusText.innerText = `Scanning page ${curr} of ${total}...`;
-        });
+        try {
+            const parser = new LedgerParser();
 
-        statusText.innerText = "Completed";
-        processBtn.disabled = false;
+            window.fullResult = await parser.parse(file, (curr, total) => {
+                statusText.innerText = `Scanning page ${curr} of ${total}...`;
+            });
 
-        studentCount.innerText = window.fullResult.students.length;
-        dashboard.classList.remove("hidden");
+            statusText.innerText = "Completed";
+            processBtn.disabled = false;
 
-        renderTable(window.fullResult.students);
+            studentCount.innerText = window.fullResult.students.length;
+            dashboardEl.classList.remove("hidden");
 
-    } catch (err) {
-        console.error(err);
-        statusText.innerText = "Error occurred. Check console.";
-        processBtn.disabled = false;
-    }
+            renderTable(window.fullResult.students);
+
+        } catch (err) {
+            console.error(err);
+            statusText.innerText = "Error occurred. Check console.";
+            processBtn.disabled = false;
+        }
+    });
 });
 
 function renderTable(students) {
