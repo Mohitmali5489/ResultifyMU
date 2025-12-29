@@ -1,33 +1,14 @@
-/* Screen Styles */
-body {
-    -webkit-print-color-adjust: exact;
-    print-color-adjust: exact;
-}
-
-/* Print Styles */
 @media print {
-    /* Hide the website UI */
     body * {
         visibility: hidden;
     }
-    
-    /* Show only the Result Card */
     #print-area, #print-area * {
         visibility: visible;
     }
-
     #print-area {
         position: absolute;
         left: 0;
         top: 0;
         width: 100%;
-        margin: 0;
-        padding: 0;
-    }
-
-    /* Force A4 Size */
-    @page {
-        size: A4 portrait;
-        margin: 0;
     }
 }
