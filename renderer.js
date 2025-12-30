@@ -2,7 +2,7 @@ const Renderer = {
     renderCard: (student, college) => `
     <div class="p-10 text-sm" style="width:210mm;min-height:297mm;">
         <h2 class="text-center text-xl font-bold mb-1">University of Mumbai</h2>
-        <p class="text-center mb-4 font-semibold">GRADE CARD</p>
+        <p class="text-center font-semibold mb-4">GRADE CARD</p>
 
         <div class="border p-3 mb-4">
             <p><b>Name:</b> ${student.name}</p>
