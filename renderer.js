@@ -1,5 +1,5 @@
-// SUBJECT ORDER AS PER MU LEDGER (B.Com AF – Semester II)
-const SUBJECT_MASTER = [
+// SUBJECT MASTER — DECLARE SAFELY (NO REDECLARATION ERROR)
+window.SUBJECT_MASTER = window.SUBJECT_MASTER || [
     { code: "1102311", name: "Social Media Marketing (OE)", credit: 2 },
     { code: "1112312", name: "Environmental Science", credit: 2 },
     { code: "1162111", name: "Financial Accounting - II", credit: 4 },
@@ -76,12 +76,12 @@ class LedgerParser {
             const clean = line.replace(/\s+/g, " ").trim();
             const upper = clean.toUpperCase();
 
-            // College
+            // COLLEGE
             if (!this.result.college.name && upper.includes("COLLEGE")) {
                 this.result.college = { name: clean };
             }
 
-            // Student start (ONLY if seat no changes)
+            // STUDENT START — ONLY WHEN SEAT NO CHANGES
             const seatMatch = clean.match(
                 /^(\d{7,15})\s+([A-Z\s]+)\s+(REGULAR|PRIVATE)/i
             );
@@ -104,23 +104,22 @@ class LedgerParser {
                     subjectIndex = 0;
                     lastSeatNo = seatNo;
                 }
-
                 continue;
             }
 
             if (!student) continue;
 
-            // ERN / PRN
+            // ERN (MU...)
             const prnMatch = clean.match(/\((MU\d+)\)/);
             if (prnMatch) student.prn = prnMatch[1];
 
-            // SUBJECT TOTAL ROW (MU SAFE)
+            // SUBJECT TOTAL ROW
             const totMatch = clean.match(
                 /^TOT\s+(\d+)\s+(\d+)\s+([A-F\+O]+)\s+(\d+)\s+([\d\.]+)/i
             );
 
-            if (totMatch && SUBJECT_MASTER[subjectIndex]) {
-                const subj = SUBJECT_MASTER[subjectIndex];
+            if (totMatch && window.SUBJECT_MASTER[subjectIndex]) {
+                const subj = window.SUBJECT_MASTER[subjectIndex];
 
                 student.subjects.push({
                     code: subj.code,
@@ -141,7 +140,7 @@ class LedgerParser {
                 if (sgpaMatch) student.sgpa = sgpaMatch[1];
             }
 
-            // Result
+            // RESULT
             if (upper.includes("RESULT")) {
                 if (upper.includes("PASS")) student.result = "PASS";
                 else if (upper.includes("FAIL")) student.result = "FAIL";
