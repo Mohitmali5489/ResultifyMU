@@ -1,4 +1,4 @@
-// SUBJECT ORDER AS PER MU LEDGER (SEM II – AF)
+// SUBJECT ORDER AS PER MU LEDGER (B.Com AF – Semester II)
 const SUBJECT_MASTER = [
     { code: "1102311", name: "Social Media Marketing (OE)", credit: 2 },
     { code: "1112312", name: "Environmental Science", credit: 2 },
@@ -29,15 +29,15 @@ class LedgerParser {
             const page = await pdf.getPage(p);
             const content = await page.getTextContent();
 
-            let items = content.items.map(i => ({
-                str: i.str,
-                x: i.transform[4],
-                y: i.transform[5]
-            }));
-
-            items.sort((a, b) =>
-                Math.abs(b.y - a.y) < 4 ? a.x - b.x : b.y - a.y
-            );
+            const items = content.items
+                .map(i => ({
+                    str: i.str,
+                    x: i.transform[4],
+                    y: i.transform[5]
+                }))
+                .sort((a, b) =>
+                    Math.abs(b.y - a.y) < 4 ? a.x - b.x : b.y - a.y
+                );
 
             const lines = this.rebuildLines(items);
             this.processLines(lines);
@@ -71,16 +71,16 @@ class LedgerParser {
         let student = null;
         let subjectIndex = 0;
 
-        for (let line of lines) {
+        for (const line of lines) {
             const clean = line.replace(/\s+/g, " ").trim();
             const upper = clean.toUpperCase();
 
-            // COLLEGE
+            // College
             if (!this.result.college.name && upper.includes("COLLEGE")) {
                 this.result.college = { name: clean };
             }
 
-            // STUDENT START
+            // Student start
             const seatMatch = clean.match(
                 /^(\d{7,15})\s+([A-Z\s]+)\s+(REGULAR|PRIVATE)/i
             );
@@ -103,15 +103,13 @@ class LedgerParser {
 
             if (!student) continue;
 
-            // ERN / PRN (MU...)
+            // ERN / PRN
             const prnMatch = clean.match(/\((MU\d+)\)/);
-            if (prnMatch) {
-                student.prn = prnMatch[1];
-            }
+            if (prnMatch) student.prn = prnMatch[1];
 
-            // SUBJECT TOTAL ROW
+            // SUBJECT TOTAL ROW (MU SAFE)
             const totMatch = clean.match(
-                /^TOT\s+(\d+)\s+(\d+)\s+([A-F\+O]+)\s+(\d+)\s+([\d\.]+)$/i
+                /^TOT\s+(\d+)\s+(\d+)\s+([A-F\+O]+)\s+(\d+)\s+([\d\.]+)/i
             );
 
             if (totMatch && SUBJECT_MASTER[subjectIndex]) {
@@ -133,20 +131,16 @@ class LedgerParser {
             // SGPA
             if (upper.includes("SGPA")) {
                 const sgpaMatch = clean.match(/SGPA\s*[:\-]?\s*(\d+\.\d+)/i);
-                if (sgpaMatch) {
-                    student.sgpa = sgpaMatch[1];
-                }
+                if (sgpaMatch) student.sgpa = sgpaMatch[1];
             }
 
-            // RESULT
+            // Result
             if (upper.includes("RESULT")) {
                 if (upper.includes("PASS")) student.result = "PASS";
                 else if (upper.includes("FAIL")) student.result = "FAIL";
             }
         }
 
-        if (student) {
-            this.result.students.push(student);
-        }
+        if (student) this.result.students.push(student);
     }
 }
